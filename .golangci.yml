@@ -1,0 +1,26 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: all
+  disable:
+    # Excessive complexity
+    - depguard
+    - exhaustruct
+    # Deprecated linters
+    - wsl
+  settings:
+    gomoddirectives:
+      # These replaces mirror kommodity's go.mod; they are required, not
+      # discretionary — see go.mod for why.
+      replace-allow-list:
+        - github.com/google/cel-go
+        - k8s.io/kube-controller-manager
+        - k8s.io/cri-client
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

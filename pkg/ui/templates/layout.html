@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Kontinuum</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        accent: '#E0924F'
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-image: radial-gradient(at 15% 8%, rgba(255,255,255,0.04) 0px, transparent 45%),
+                               radial-gradient(at 85% 92%, rgba(255,255,255,0.03) 0px, transparent 40%);
+            background-attachment: fixed;
+        }
+    </style>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen font-mono" hx-boost="true">
+    {{template "nav" .}}
+
+    <main class="pt-20 lg:pt-8 lg:ml-56 min-h-screen px-4 pb-6 lg:px-8 lg:pb-8">
+        <div class="max-w-screen-2xl mx-auto w-full">
+            {{block "content" .}}{{end}}
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,31 @@
+root = "."
+tmp_dir = "bin"
+
+[build]
+  entrypoint = "./bin/kontinuum"
+  cmd = "go build -buildvcs=false -o ./bin/kontinuum ./cmd/kontinuum"
+  delay = 1000
+  exclude_dir = ["bin", "vendor"]
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = "./bin/kontinuum serve"
+  include_dir = ["."]
+  include_ext = ["go", "tpl", "tmpl", "html", "yaml"]
+  kill_delay = "2s"
+  log = "bin/build-errors.log"
+  send_interrupt = true
+  stop_on_error = true
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

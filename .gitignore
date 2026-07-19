@@ -1,0 +1,22 @@
+# Build artifacts
+bin/
+release/
+
+# Local databases (sqlite storage)
+*.db
+*.db-*
+*.db-shm
+*.db-wal
+
+# air hot-reload temp
+/tmp/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local env / kubeconfig overrides
+.env
+.env.*

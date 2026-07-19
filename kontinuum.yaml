@@ -1,0 +1,21 @@
+# Sample kubeconfig for connecting to a local kontinuum server.
+#
+# kontinuum's libkapi server ships with no TLS and no authentication by
+# default (anonymous + always-allow), so no user credentials are required.
+# Point kubectl at it with:
+#
+#   kubectl --kubeconfig kontinuum.yaml get namespaces
+#
+# The dev server (make dev) exposes the API on http://localhost:8080.
+apiVersion: v1
+kind: Config
+clusters:
+  - name: kontinuum
+    cluster:
+      server: http://localhost:8080
+contexts:
+  - name: kontinuum
+    context:
+      cluster: kontinuum
+      user: anonymous
+current-context: kontinuum
