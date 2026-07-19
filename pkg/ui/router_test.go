@@ -151,6 +151,43 @@ func TestHandleHomeShowsLogoutLinkOnlyWhenAuthEnabled(t *testing.T) {
 	}
 }
 
+func TestHandleSettingsShowsOIDCDetailsOnlyWhenAuthEnabled(t *testing.T) {
+	t.Parallel()
+
+	factory := func(context.Context) (ui.NamespaceLister, error) {
+		return stubNamespaceLister{list: &corev1.NamespaceList{}}, nil
+	}
+
+	cfg := config.Config{}
+	cfg.OIDC.IssuerURL = "https://auth.example.com"
+	cfg.OIDC.ClientID = "kontinuum"
+	cfg.OIDC.AdminGroups = "platform-team"
+
+	for _, authEnabled := range []bool{true, false} {
+		router := ui.NewRouter(factory, "test-version", cfg, authEnabled)
+
+		mux := http.NewServeMux()
+		router.RegisterRoutes(mux, nil, nil)
+
+		recorder := httptest.NewRecorder()
+		mux.ServeHTTP(recorder, newTestRequest(t, "/app/settings"))
+
+		resp := recorder.Result()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		if authEnabled {
+			assert.Contains(t, string(body), "https://auth.example.com")
+			assert.Contains(t, string(body), "platform-team")
+		} else {
+			assert.NotContains(t, string(body), "https://auth.example.com")
+			assert.NotContains(t, string(body), "platform-team")
+		}
+	}
+}
+
 func TestRegisterRoutesDefaultsToUnconditionalAppRedirect(t *testing.T) {
 	t.Parallel()
 

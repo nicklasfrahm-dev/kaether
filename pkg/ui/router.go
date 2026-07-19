@@ -187,15 +187,18 @@ func (r *Router) handleHome(writer http.ResponseWriter, request *http.Request) {
 
 func (r *Router) handleSettings(writer http.ResponseWriter, _ *http.Request) {
 	r.render(writer, pageSettings, map[string]any{
-		"Title":          "Settings",
-		"ActiveMenu":     "settings",
-		"Version":        r.version,
-		"Addr":           r.cfg.Server.Addr,
-		"StorageBackend": storageBackendName(r.cfg.Server.Storage),
-		"StorageTarget":  r.cfg.Server.Storage,
-		"LogLevel":       r.cfg.Log.Level,
-		"LogFormat":      r.cfg.Log.Format,
-		"AuthEnabled":    r.authEnabled,
+		"Title":           "Settings",
+		"ActiveMenu":      "settings",
+		"Version":         r.version,
+		"Addr":            r.cfg.Server.Addr,
+		"StorageBackend":  storageBackendName(r.cfg.Server.Storage),
+		"StorageTarget":   r.cfg.Server.Storage,
+		"LogLevel":        r.cfg.Log.Level,
+		"LogFormat":       r.cfg.Log.Format,
+		"AuthEnabled":     r.authEnabled,
+		"OIDCIssuerURL":   r.cfg.OIDC.IssuerURL,
+		"OIDCClientID":    r.cfg.OIDC.ClientID,
+		"OIDCAdminGroups": r.cfg.OIDC.AdminGroups,
 	})
 }
 
