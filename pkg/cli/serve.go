@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -152,19 +153,17 @@ func buildServer(
 ) (*libkapi.Server, error) {
 	uiRouter := ui.NewRouter(namespaceListerFactory(cfg.Server.Addr), version, config.Redact(*cfg), oidcHandler != nil)
 
-	kapiCfg := libkapi.Config{
-		Addr:    cfg.Server.Addr,
-		Storage: cfg.Server.Storage,
-		Logger:  logger,
-		Handlers: []libkapi.HTTPHandlerFactory{
-			customHandlers(uiRouter, oidcHandler),
-		},
-	}
+	opts := slices.Concat([]libkapi.Option{
+		libkapi.WithAddr(cfg.Server.Addr),
+		libkapi.WithStorage(cfg.Server.Storage),
+		libkapi.WithLogger(logger),
+		libkapi.WithHTTPHandlerFactory(customHandlers(uiRouter, oidcHandler)),
+	}, authOpts)
 
 	// Storage is resolved against a background context so the backend
 	// is only torn down by Server.Shutdown, not by the signal context
 	// that drives ListenAndServe.
-	server, err := libkapi.New(context.Background(), kapiCfg, authOpts...)
+	server, err := libkapi.New(context.Background(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build server: %w", err)
 	}
