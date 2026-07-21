@@ -47,9 +47,9 @@
         const ctx = canvas.getContext("2d");
 
         const CELL = 64; // approximate spacing between nodes, in CSS px
-        const WANDER_RADIUS = CELL * 0.2;
-        const MIN_DURATION = 3000;
-        const MAX_DURATION = 7000;
+        const WANDER_RADIUS = CELL * 0.25;
+        const MIN_DURATION = 2200;
+        const MAX_DURATION = 5000;
         const STROKE = "rgba(255, 255, 255, 0.16)";
 
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
