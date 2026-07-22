@@ -158,6 +158,12 @@ func newTestRequest(t *testing.T, target string) *http.Request {
 	return httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
 }
 
+// expectedLoginErrorLocation mirrors pkg/auth's redirectLoginError, so tests
+// can assert on the exact redirect target it produces.
+func expectedLoginErrorLocation(message string) string {
+	return "/app?" + url.Values{"error": {message}}.Encode()
+}
+
 func TestNewHandlerRequiresConfig(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +203,29 @@ func TestHandleAppRendersLoginPageWhenUnauthenticated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "Login via SSO")
 	assert.Contains(t, string(body), `href="/app/login"`)
+}
+
+func TestHandleAppShowsErrorFromQueryParamEscaped(t *testing.T) {
+	t.Parallel()
+
+	provider := newTestProvider(t)
+	handler := newHandler(t, provider)
+
+	recorder := httptest.NewRecorder()
+	target := testOrigin + "/app?" + url.Values{"error": {`<script>alert(1)</script>`}}.Encode()
+	handler.HandleApp(recorder, newTestRequest(t, target))
+
+	resp := recorder.Result()
+
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "<script>alert(1)</script>",
+		"the error message must be HTML-escaped, not injected verbatim")
+	assert.Contains(t, string(body), "&lt;script&gt;alert(1)&lt;/script&gt;")
 }
 
 func TestHandleLoginRedirectsToProvider(t *testing.T) {
@@ -412,7 +441,8 @@ func TestHandleAppRejectsStateMismatch(t *testing.T) {
 
 	defer func() { _ = callbackResp.Body.Close() }()
 
-	assert.Equal(t, http.StatusBadRequest, callbackResp.StatusCode)
+	assert.Equal(t, http.StatusFound, callbackResp.StatusCode)
+	assert.Equal(t, expectedLoginErrorLocation(auth.MapError(auth.ErrStateMismatch)), callbackResp.Header.Get("Location"))
 }
 
 func TestHandleAppRejectsMissingFlowCookie(t *testing.T) {
@@ -428,7 +458,34 @@ func TestHandleAppRejectsMissingFlowCookie(t *testing.T) {
 
 	defer func() { _ = callbackResp.Body.Close() }()
 
-	assert.Equal(t, http.StatusBadRequest, callbackResp.StatusCode)
+	assert.Equal(t, http.StatusFound, callbackResp.StatusCode)
+	assert.Equal(t, expectedLoginErrorLocation(auth.MapError(auth.ErrLoginExpired)), callbackResp.Header.Get("Location"))
+}
+
+func TestHandleAppClearsSessionCookieOnLoginFailure(t *testing.T) {
+	t.Parallel()
+
+	provider := newTestProvider(t)
+	handler := newHandler(t, provider)
+
+	sessionCookie := loginAndGetSessionCookie(t, handler, provider)
+
+	_, flowCookie := beginLoginAndSetNonce(t, handler, provider)
+
+	callbackReq := newTestRequest(t, testOrigin+"/app?code=test-code&state=wrong-state")
+	callbackReq.AddCookie(flowCookie)
+	callbackReq.AddCookie(sessionCookie)
+
+	callbackRecorder := httptest.NewRecorder()
+	handler.HandleApp(callbackRecorder, callbackReq)
+
+	callbackResp := callbackRecorder.Result()
+
+	defer func() { _ = callbackResp.Body.Close() }()
+
+	cleared := findCookie(callbackResp.Cookies(), "kontinuum_session")
+	require.NotNil(t, cleared, "a failed login attempt should clear any existing session cookie")
+	assert.Negative(t, cleared.MaxAge)
 }
 
 func findCookie(cookies []*http.Cookie, name string) *http.Cookie {

@@ -151,7 +151,15 @@ func loadServeConfig(cmd *cobra.Command, addr string, storage string) (*config.C
 func buildServer(
 	cfg *config.Config, logger *slog.Logger, authOpts []libkapi.Option, oidcHandler *auth.Handler,
 ) (*libkapi.Server, error) {
-	uiRouter := ui.NewRouter(namespaceListerFactory(cfg.Server.Addr), version, config.Redact(*cfg), oidcHandler != nil)
+	// oidcHandler is nil when OIDC isn't configured — leave invalidateSession
+	// nil too rather than binding a method value to a nil receiver.
+	var invalidateSession ui.SessionInvalidator
+	if oidcHandler != nil {
+		invalidateSession = oidcHandler.InvalidateSession
+	}
+
+	uiRouter := ui.NewRouter(
+		namespaceListerFactory(cfg.Server.Addr), version, config.Redact(*cfg), oidcHandler != nil, invalidateSession)
 
 	opts := slices.Concat([]libkapi.Option{
 		libkapi.WithAddr(cfg.Server.Addr),

@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -103,7 +104,7 @@ func (h *Handler) HandleApp(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	h.renderLoginPage(writer)
+	h.renderLoginPage(writer, request.URL.Query().Get("error"))
 }
 
 // HandleLogin begins a new PKCE login attempt, redirecting the browser to
@@ -187,11 +188,15 @@ func (h *Handler) beginLogin(writer http.ResponseWriter, request *http.Request) 
 }
 
 // handleCallback completes the authorization code exchange, verifies the
-// returned ID token, and sets the session cookie.
+// returned ID token, and sets the session cookie. Any failure sends the
+// browser back to the login page via redirectLoginError instead of
+// rendering a raw error response, since this endpoint only ever receives
+// browser navigations (the OIDC issuer's redirect back from its
+// authorization endpoint), never an API client.
 func (h *Handler) handleCallback(writer http.ResponseWriter, request *http.Request) {
 	flowCookie, err := request.Cookie(flowCookieName)
 	if err != nil {
-		http.Error(writer, ErrLoginExpired.Error(), http.StatusBadRequest)
+		h.redirectLoginError(writer, request, MapError(ErrLoginExpired))
 
 		return
 	}
@@ -202,13 +207,13 @@ func (h *Handler) handleCallback(writer http.ResponseWriter, request *http.Reque
 
 	wantState, wantNonce, pkceVerifier, err := decodeFlowCookie(flowCookie.Value)
 	if err != nil {
-		http.Error(writer, ErrLoginExpired.Error(), http.StatusBadRequest)
+		h.redirectLoginError(writer, request, MapError(err))
 
 		return
 	}
 
 	if request.URL.Query().Get("state") != wantState {
-		http.Error(writer, ErrStateMismatch.Error(), http.StatusBadRequest)
+		h.redirectLoginError(writer, request, MapError(ErrStateMismatch))
 
 		return
 	}
@@ -218,14 +223,14 @@ func (h *Handler) handleCallback(writer http.ResponseWriter, request *http.Reque
 	token, err := h.oauth2Config.Exchange(request.Context(), code, oauth2.VerifierOption(pkceVerifier))
 	if err != nil {
 		h.logger.Warn("Failed to exchange oidc authorization code", "error", err)
-		http.Error(writer, "failed to complete login: "+err.Error(), http.StatusBadGateway)
+		h.redirectLoginError(writer, request, MapError(err))
 
 		return
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		http.Error(writer, ErrMissingIDToken.Error(), http.StatusBadGateway)
+		h.redirectLoginError(writer, request, MapError(ErrMissingIDToken))
 
 		return
 	}
@@ -233,13 +238,13 @@ func (h *Handler) handleCallback(writer http.ResponseWriter, request *http.Reque
 	idToken, err := h.idTokenVerifier.Verify(request.Context(), rawIDToken)
 	if err != nil {
 		h.logger.Warn("Failed to verify oidc id token", "error", err)
-		http.Error(writer, "failed to complete login: "+err.Error(), http.StatusBadGateway)
+		h.redirectLoginError(writer, request, MapError(err))
 
 		return
 	}
 
 	if idToken.Nonce != wantNonce {
-		http.Error(writer, ErrNonceMismatch.Error(), http.StatusBadRequest)
+		h.redirectLoginError(writer, request, MapError(ErrNonceMismatch))
 
 		return
 	}
@@ -247,4 +252,28 @@ func (h *Handler) handleCallback(writer http.ResponseWriter, request *http.Reque
 	setCookie(writer, sessionCookieName, rawIDToken, idToken.Expiry)
 
 	http.Redirect(writer, request, "/app/home", http.StatusFound)
+}
+
+// redirectLoginError clears any session cookie — a failed login attempt
+// shouldn't leave a stale one behind — and sends the browser back to /app
+// with message in an "error" query parameter, which HandleApp reads and
+// hands to renderLoginPage to show as a human-readable error box.
+func (h *Handler) redirectLoginError(writer http.ResponseWriter, request *http.Request, message string) {
+	clearCookie(writer, sessionCookieName)
+
+	target := url.URL{Path: "/app", RawQuery: url.Values{"error": {message}}.Encode()}
+	http.Redirect(writer, request, target.String(), http.StatusFound)
+}
+
+// InvalidateSession clears the session cookie and redirects to the login
+// page with reason shown as a human-readable error — the same treatment a
+// failed login gets (see redirectLoginError, which this wraps). Exported
+// for callers outside this package that determine, on their own, that a
+// session already past HandleApp/Protect should no longer be trusted — for
+// example pkg/ui, when the Kubernetes API rejects an otherwise
+// authenticated request as Forbidden. A valid session cookie only proves
+// who the caller is, not what they're allowed to do, so that kind of
+// rejection is a real reason to send them back to sign in.
+func (h *Handler) InvalidateSession(writer http.ResponseWriter, request *http.Request, reason string) {
+	h.redirectLoginError(writer, request, reason)
 }

@@ -17,11 +17,13 @@ func parseLoginPage() *template.Template {
 
 // renderLoginPage writes the /app landing page: a "Login via SSO" button
 // linking to /app/login. It never redirects on its own — the OIDC flow only
-// starts once the user clicks through.
-func (h *Handler) renderLoginPage(writer http.ResponseWriter) {
+// starts once the user clicks through. loginError, when non-empty, is shown
+// as a human-readable error box above the button — see redirectLoginError,
+// which is the only source of a non-empty value.
+func (h *Handler) renderLoginPage(writer http.ResponseWriter, loginError string) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Errors here mean the response is already partially written; there is
 	// nothing more useful to do than let the client see a truncated body.
-	_ = h.loginPage.Execute(writer, nil)
+	_ = h.loginPage.Execute(writer, map[string]any{"LoginError": loginError})
 }

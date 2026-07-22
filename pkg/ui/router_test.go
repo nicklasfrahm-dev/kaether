@@ -52,7 +52,7 @@ func TestHandleHomeRendersTenants(t *testing.T) {
 		}}, nil
 	}
 
-	router := ui.NewRouter(factory, "test-version", config.Config{}, false)
+	router := ui.NewRouter(factory, "test-version", config.Config{}, false, nil)
 
 	mux := http.NewServeMux()
 	router.RegisterRoutes(mux, nil, nil)
@@ -78,7 +78,7 @@ func TestHandleHomeReturnsServerErrorWhenFactoryFails(t *testing.T) {
 		return nil, errFactory
 	}
 
-	router := ui.NewRouter(factory, "test-version", config.Config{}, false)
+	router := ui.NewRouter(factory, "test-version", config.Config{}, false, nil)
 
 	mux := http.NewServeMux()
 	router.RegisterRoutes(mux, nil, nil)
@@ -100,7 +100,7 @@ func TestRegisterRoutesUsesCustomAppRootAndProtect(t *testing.T) {
 		return stubNamespaceLister{list: &corev1.NamespaceList{}}, nil
 	}
 
-	router := ui.NewRouter(factory, "test-version", config.Config{}, false)
+	router := ui.NewRouter(factory, "test-version", config.Config{}, false, nil)
 
 	appRootCalled := false
 	appRoot := func(http.ResponseWriter, *http.Request) { appRootCalled = true }
@@ -135,7 +135,7 @@ func TestHandleHomeShowsLogoutLinkOnlyWhenAuthEnabled(t *testing.T) {
 	}
 
 	for _, authEnabled := range []bool{true, false} {
-		router := ui.NewRouter(factory, "test-version", config.Config{}, authEnabled)
+		router := ui.NewRouter(factory, "test-version", config.Config{}, authEnabled, nil)
 
 		mux := http.NewServeMux()
 		router.RegisterRoutes(mux, nil, nil)
@@ -170,7 +170,7 @@ func TestHandleSettingsShowsOIDCDetailsOnlyWhenAuthEnabled(t *testing.T) {
 	cfg.OIDC.AdminGroups = "platform-team"
 
 	for _, authEnabled := range []bool{true, false} {
-		router := ui.NewRouter(factory, "test-version", cfg, authEnabled)
+		router := ui.NewRouter(factory, "test-version", cfg, authEnabled, nil)
 
 		mux := http.NewServeMux()
 		router.RegisterRoutes(mux, nil, nil)
@@ -206,7 +206,7 @@ func TestHandleSettingsShowsKubeconfigOnlyWhenAuthEnabled(t *testing.T) {
 	cfg.OIDC.ClientID = testOIDCClientID
 
 	for _, authEnabled := range []bool{true, false} {
-		router := ui.NewRouter(factory, "test-version", cfg, authEnabled)
+		router := ui.NewRouter(factory, "test-version", cfg, authEnabled, nil)
 
 		mux := http.NewServeMux()
 		router.RegisterRoutes(mux, nil, nil)
@@ -249,7 +249,7 @@ func TestHandleSettingsStripsPortFromKubeconfigClusterName(t *testing.T) {
 	cfg.OIDC.IssuerURL = testOIDCIssuerURL
 	cfg.OIDC.ClientID = testOIDCClientID
 
-	router := ui.NewRouter(factory, "test-version", cfg, true)
+	router := ui.NewRouter(factory, "test-version", cfg, true, nil)
 
 	mux := http.NewServeMux()
 	router.RegisterRoutes(mux, nil, nil)
@@ -286,7 +286,7 @@ func TestHandleSettingsUsesForwardedProtoForKubeconfigOrigin(t *testing.T) {
 	cfg.OIDC.IssuerURL = testOIDCIssuerURL
 	cfg.OIDC.ClientID = testOIDCClientID
 
-	router := ui.NewRouter(factory, "test-version", cfg, true)
+	router := ui.NewRouter(factory, "test-version", cfg, true, nil)
 
 	mux := http.NewServeMux()
 	router.RegisterRoutes(mux, nil, nil)
@@ -315,7 +315,7 @@ func TestRegisterRoutesDefaultsToUnconditionalAppRedirect(t *testing.T) {
 		return stubNamespaceLister{list: &corev1.NamespaceList{}}, nil
 	}
 
-	router := ui.NewRouter(factory, "test-version", config.Config{}, false)
+	router := ui.NewRouter(factory, "test-version", config.Config{}, false, nil)
 
 	mux := http.NewServeMux()
 	router.RegisterRoutes(mux, nil, nil)

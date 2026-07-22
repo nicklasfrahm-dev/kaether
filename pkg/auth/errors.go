@@ -1,6 +1,10 @@
 package auth
 
-import "errors"
+import (
+	"errors"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+)
 
 var (
 	// ErrIssuerURLRequired is returned when Config.IssuerURL is empty.
@@ -21,3 +25,36 @@ var (
 	// ErrMissingIDToken is returned when the token response has no id_token field.
 	ErrMissingIDToken = errors.New("token response did not include an id_token")
 )
+
+// MapError converts a technical error into a human-readable message.
+// If the error is not recognized, it returns the error's original message.
+func MapError(err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, ErrIssuerURLRequired):
+		return "The OIDC issuer URL is missing from the configuration."
+	case errors.Is(err, ErrClientIDRequired):
+		return "The OIDC Client ID is missing from the configuration."
+	case errors.Is(err, ErrRedirectURLRequired):
+		return "The OIDC Redirect URL is missing from the configuration."
+	case errors.Is(err, ErrLoginExpired):
+		return "Your login session has expired. Please try signing in again."
+	case errors.Is(err, ErrStateMismatch):
+		return "Security validation failed (state mismatch). Please try signing in again."
+	case errors.Is(err, ErrNonceMismatch):
+		return "Security validation failed (nonce mismatch). Please try signing in again."
+	case errors.Is(err, ErrMissingIDToken):
+		return "The server failed to receive a valid identity token. Please try signing in again."
+	// Forbidden means the Kubernetes API server's authorizer (see libkapi's
+	// AdminAuthorizer) rejected the request — the caller authenticated fine
+	// but isn't in the configured admin group, system:masters, or a service
+	// account. That RBAC-style reason is meant for kubectl output, not this
+	// UI, so swap it for something a browser user can act on.
+	case apierrors.IsForbidden(err):
+		return "You're signed in, but your account isn't authorized to access this. " +
+			"Ask an administrator to grant you the necessary permissions."
+	default:
+		return err.Error()
+	}
+}

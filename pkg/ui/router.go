@@ -13,8 +13,10 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/nicklasfrahm/kontinuum/pkg/auth"
 	"github.com/nicklasfrahm/kontinuum/pkg/config"
 )
 
@@ -29,6 +31,16 @@ type NamespaceLister interface {
 // carries — see pkg/auth.WithToken/TokenFromContext — instead of through a
 // separate, privileged internal client.
 type NamespaceListerFactory func(ctx context.Context) (NamespaceLister, error)
+
+// SessionInvalidator ends the caller's session and sends them back to the
+// login page with message shown as a human-readable error. Called when a
+// Kubernetes API request comes back Forbidden — a valid session cookie only
+// proves who the signed-in user is, not what they're allowed to do, so this
+// package (which has no notion of sessions itself) delegates ending one to
+// whoever wraps this router. See pkg/auth.Handler.InvalidateSession, the
+// only implementation kontinuum wires up today. nil disables this behavior
+// — the Forbidden error is just shown as a plain response instead.
+type SessionInvalidator func(writer http.ResponseWriter, request *http.Request, message string)
 
 //go:embed templates/*.html templates/components/*.html
 var templatesFS embed.FS
@@ -62,11 +74,12 @@ func mustParsePage(content ...string) *template.Template {
 
 // Router handles HTTP routing for the /app UI.
 type Router struct {
-	namespacesFor NamespaceListerFactory
-	pages         map[string]*template.Template
-	version       string
-	cfg           config.Config
-	authEnabled   bool
+	namespacesFor     NamespaceListerFactory
+	pages             map[string]*template.Template
+	version           string
+	cfg               config.Config
+	authEnabled       bool
+	invalidateSession SessionInvalidator
 }
 
 // NewRouter creates a new UI router backed by namespacesFor. cfg is shown on
@@ -74,7 +87,11 @@ type Router struct {
 // config.Redact) — Router does not redact it itself. authEnabled shows or
 // hides the nav's logout link; pass true only when a /app/logout route is
 // actually registered (see pkg/auth), since otherwise the link would 404.
-func NewRouter(namespacesFor NamespaceListerFactory, version string, cfg config.Config, authEnabled bool) *Router {
+// invalidateSession may be nil (see SessionInvalidator).
+func NewRouter(
+	namespacesFor NamespaceListerFactory, version string, cfg config.Config, authEnabled bool,
+	invalidateSession SessionInvalidator,
+) *Router {
 	pages := map[string]*template.Template{
 		pageHome: mustParsePage("templates/home_content.html"),
 		pageSettings: mustParsePage("templates/settings_content.html",
@@ -85,11 +102,12 @@ func NewRouter(namespacesFor NamespaceListerFactory, version string, cfg config.
 	}
 
 	return &Router{
-		namespacesFor: namespacesFor,
-		pages:         pages,
-		version:       version,
-		cfg:           cfg,
-		authEnabled:   authEnabled,
+		namespacesFor:     namespacesFor,
+		pages:             pages,
+		version:           version,
+		cfg:               cfg,
+		authEnabled:       authEnabled,
+		invalidateSession: invalidateSession,
 	}
 }
 
@@ -164,6 +182,16 @@ func (r *Router) handleHome(writer http.ResponseWriter, request *http.Request) {
 
 	list, err := namespaces.List(request.Context(), metav1.ListOptions{})
 	if err != nil {
+		// Forbidden means the signed-in identity is authenticated but not
+		// authorized — the session itself isn't the problem, but there's
+		// no reason to keep it either, so send the caller back to sign in
+		// rather than leave them stuck on a page they can't use.
+		if apierrors.IsForbidden(err) && r.invalidateSession != nil {
+			r.invalidateSession(writer, request, auth.MapError(err))
+
+			return
+		}
+
 		http.Error(writer, "failed to list namespaces: "+err.Error(), http.StatusBadGateway)
 
 		return

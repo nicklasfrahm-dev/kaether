@@ -1,3 +1,5 @@
+# Avoid issues with incorrect JSON schema.
+#:schema none
 root = "."
 tmp_dir = "bin"
 
